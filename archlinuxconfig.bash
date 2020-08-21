@@ -213,24 +213,32 @@ _ADDcsystemctl_() {
 	declare COMMANDP
 	COMMANDP="\$(command -v python3)" || printf "%s\\n" "Command python3 not found; Continuing..."
 	[[ "\${COMMANDP:-}" == *python3* ]] || pacman --noconfirm --color=always -S python3 || sudo pacman --noconfirm --color=always -S python3
-	SDATE="\$(date +%s)"
-	# path is /usr/local/bin because updates overwrite /usr/bin/systemctl and may make systemctl-replacement obsolete
+	# path is $HOME/bin because updates overwrite /usr/bin/systemctl and may make systemctl-replacement obsolete
 	# backup original binary
-	if [ ! -f /usr/bin/systemctl.old ]
+	if [ -f /usr/bin/systemctl ]
 	then
-		cp /usr/bin/systemctl /usr/bin/systemctl.old
+		mv /usr/bin/systemctl /usr/bin/systemctl.old
 	fi
-	mv /usr/bin/systemctl ~/systemctl.\$SDATE.old
-	printf "%s\\n" "Moved /usr/bin/systemctl ~/systemctl.\$SDATE.old"
+	printf "%s\\n" "Moved /usr/bin/systemctl /usr/bin/systemctl.old"
 	printf "%s\\n" "Getting replacement systemctl from https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py"
-	# copy to both /usr/local/bin and /usr/bin
-	# updates won't halt functioning since /usr/local/bin precedes /usr/bin in PATH
-	curl https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py | tee /usr/bin/systemctl /usr/local/bin/systemctl >/dev/null
-	chmod 700 /usr/bin/systemctl
-	chmod 700 /usr/local/bin/systemctl
+	# copy to $HOME/bin
+	# updates won't halt functioning since $HOME/bin precedes /usr/bin in PATH and even if /usr/bin/systemctl respawns due to updates, it will have no effect
+	# downloading to $HOME/bin will suffice because it preceeds /usr/bin in PATH
+	curl https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/master/files/docker/systemctl3.py > /root/bin/systemctl
+	chmod 700 /root/bin/systemctl
+	# make it available for all users
+	HVAR="$(ls "/home")"
+	for USER in ${HVAR[@]}
+	do
+		if [[ "$USER" != alarm ]]
+		then
+			cp /root/bin/systemctl /home/$USER/bin/systemctl
+			chmod 700 /home/$USER/bin/systemctl
+		fi
+	done
 	[ ! -e /run/lock ] && mkdir -p /run/lock
-	touch /var/lock/csystemctl.lock
-	printf "%s\\n" "Installing systemctl replacement in /usr/local/bin and /usr/bin: DONE"
+	touch /var/lock/csystemctl.lock	
+	printf "%s\\n" "Installing systemctl replacement in ~/bin: DONE"
 	EOM
 	chmod 700 root/bin/csystemctl.bash
 }
